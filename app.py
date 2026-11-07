@@ -1,10 +1,7 @@
-from pathlib import Path
-
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 from sklearn.metrics import (
     accuracy_score,
@@ -12,16 +9,25 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     matthews_corrcoef,
+    roc_auc_score,
     confusion_matrix,
-    classification_report,
+    classification_report
 )
 
-st.set_page_config(page_title="ML Classification App")
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-st.title("Adult Income Classification Dashboard")
+# --------------------------------------------------
+# Page Title
+# --------------------------------------------------
 
-BASE_DIR = Path(__file__).resolve().parent
-MODELS_DIR = BASE_DIR / "models"
+st.title("ML Classification Model Dashboard")
+
+st.write("Adult Income Prediction Assignment")
+
+# --------------------------------------------------
+# Select Model
+# --------------------------------------------------
 
 model_choice = st.selectbox(
     "Select Model",
@@ -30,100 +36,153 @@ model_choice = st.selectbox(
         "Decision Tree",
         "KNN",
         "Naive Bayes",
-        "SVM",
-    ],
+        "SVM"
+    ]
 )
 
+# --------------------------------------------------
+# Model Paths
+# --------------------------------------------------
+
 model_paths = {
-    "Logistic Regression": MODELS_DIR / "logistic_regression.pkl",
-    "Decision Tree": MODELS_DIR / "decision_tree.pkl",
-    "KNN": MODELS_DIR / "knn.pkl",
-    "Naive Bayes": MODELS_DIR / "naive_bayes.pkl",
-    "SVM": MODELS_DIR / "svm.pkl",
+    "Logistic Regression": "models/logistic.pkl",
+    "Decision Tree": "models/decision_tree.pkl",
+    "KNN": "models/knn.pkl",
+    "Naive Bayes": "models/naive_bayes.pkl",
+    "SVM": "models/svm.pkl"
 }
 
+# --------------------------------------------------
+# Upload CSV
+# --------------------------------------------------
 
-def get_model_input(X):
-    """Apply an optional saved preprocessor to raw features."""
-    preprocessor_path = MODELS_DIR / "preprocessor.pkl"
-    if not preprocessor_path.exists():
-        return X
+uploaded_file = st.file_uploader(
+    "Upload test_data.csv",
+    type=["csv"]
+)
 
-    preprocessor = joblib.load(preprocessor_path)
-    X_processed = preprocessor.transform(X)
+if uploaded_file is not None:
 
-    try:
-        X_processed = X_processed.toarray()
-    except Exception:
-        pass
+    df = pd.read_csv(uploaded_file)
 
-    return X_processed
+    st.subheader("Uploaded Dataset")
 
+    st.dataframe(df.head())
 
-uploaded_file = st.file_uploader("Upload test_data.csv", type=["csv"])
+    # ----------------------------------------------
+    # Target Column
+    # ----------------------------------------------
 
-if uploaded_file:
-    try:
-        df = pd.read_csv(uploaded_file)
+    target_column = "income"
 
-        st.subheader("Uploaded Data")
-        st.write(df.head())
+    X = df.drop(target_column, axis=1)
 
-        target_column = "income"
+    y = df[target_column]
 
-        if target_column not in df.columns:
-            st.error("income column not found in uploaded file")
-            st.stop()
+    # ----------------------------------------------
+    # Load Model
+    # ----------------------------------------------
 
-        X = df.drop(target_column, axis=1)
-        y = df[target_column]
+    model = joblib.load(model_paths[model_choice])
 
-        model = joblib.load(model_paths[model_choice])
-        X_model = get_model_input(X)
+    # ----------------------------------------------
+    # Predictions
+    # ----------------------------------------------
 
-        try:
-            y_pred = model.predict(X_model)
-        except Exception:
-            y_pred = model.predict(X)
+    y_pred = model.predict(X)
 
-        st.write("Model Loaded Successfully")
+    # ----------------------------------------------
+    # Metrics
+    # ----------------------------------------------
 
-        accuracy = accuracy_score(y, y_pred)
+    accuracy = accuracy_score(y, y_pred)
 
-        try:
-            precision = precision_score(y, y_pred, pos_label=">50K")
-            recall = recall_score(y, y_pred, pos_label=">50K")
-            f1 = f1_score(y, y_pred, pos_label=">50K")
-        except Exception:
-            precision = precision_score(y, y_pred, average="weighted")
-            recall = recall_score(y, y_pred, average="weighted")
-            f1 = f1_score(y, y_pred, average="weighted")
+    precision = precision_score(
+        y,
+        y_pred,
+        pos_label=">50K"
+    )
 
-        mcc = matthews_corrcoef(y, y_pred)
+    recall = recall_score(
+        y,
+        y_pred,
+        pos_label=">50K"
+    )
 
-        metrics = pd.DataFrame(
-            {
-                "Metric": ["Accuracy", "Precision", "Recall", "F1", "MCC"],
-                "Value": [accuracy, precision, recall, f1, mcc],
-            }
-        )
+    f1 = f1_score(
+        y,
+        y_pred,
+        pos_label=">50K"
+    )
 
-        st.subheader("Metrics")
-        st.dataframe(metrics)
+    mcc = matthews_corrcoef(
+        y,
+        y_pred
+    )
 
-        st.subheader("Classification Report")
-        report = classification_report(y, y_pred, output_dict=True)
-        st.dataframe(pd.DataFrame(report).transpose())
+    st.subheader("Evaluation Metrics")
 
-        st.subheader("Confusion Matrix")
-        cm = confusion_matrix(y, y_pred)
+    metrics_df = pd.DataFrame({
+        "Metric": [
+            "Accuracy",
+            "Precision",
+            "Recall",
+            "F1 Score",
+            "MCC"
+        ],
+        "Value": [
+            accuracy,
+            precision,
+            recall,
+            f1,
+            mcc
+        ]
+    })
 
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-        st.pyplot(fig)
+    st.dataframe(metrics_df)
 
-    except Exception as e:
-        st.error(f"ERROR WHILE RUNNING MODEL: {e}")
-        st.write(
-            "Most likely cause: model was trained using preprocessing/scaling that is missing in app.py"
-        )
+    # ----------------------------------------------
+    # Classification Report
+    # ----------------------------------------------
+
+    st.subheader("Classification Report")
+
+    report = classification_report(
+        y,
+        y_pred,
+        output_dict=True
+    )
+
+    report_df = pd.DataFrame(report).transpose()
+
+    st.dataframe(report_df)
+
+    # ----------------------------------------------
+    # Confusion Matrix
+    # ----------------------------------------------
+
+    st.subheader("Confusion Matrix")
+
+    cm = confusion_matrix(
+        y,
+        y_pred
+    )
+
+    fig, ax = plt.subplots(figsize=(6,4))
+
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        ax=ax
+    )
+
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+
+    st.pyplot(fig)
+
+    st.success(
+        f"{model_choice} evaluation completed successfully!"
+    )
