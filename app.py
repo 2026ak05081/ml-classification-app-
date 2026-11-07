@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.metrics import (
     accuracy_score,
@@ -9,25 +10,13 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     matthews_corrcoef,
-    roc_auc_score,
     confusion_matrix,
     classification_report
 )
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+st.set_page_config(page_title="ML Classification App")
 
-# --------------------------------------------------
-# Page Title
-# --------------------------------------------------
-
-st.title("ML Classification Model Dashboard")
-
-st.write("Adult Income Prediction Assignment")
-
-# --------------------------------------------------
-# Select Model
-# --------------------------------------------------
+st.title("Adult Income Classification Dashboard")
 
 model_choice = st.selectbox(
     "Select Model",
@@ -40,10 +29,6 @@ model_choice = st.selectbox(
     ]
 )
 
-# --------------------------------------------------
-# Model Paths
-# --------------------------------------------------
-
 model_paths = {
     "Logistic Regression": "models/logistic.pkl",
     "Decision Tree": "models/decision_tree.pkl",
@@ -52,137 +37,146 @@ model_paths = {
     "SVM": "models/svm.pkl"
 }
 
-# --------------------------------------------------
-# Upload CSV
-# --------------------------------------------------
-
 uploaded_file = st.file_uploader(
     "Upload test_data.csv",
     type=["csv"]
 )
 
-if uploaded_file is not None:
+if uploaded_file:
 
-    df = pd.read_csv(uploaded_file)
+    try:
 
-    st.subheader("Uploaded Dataset")
+        df = pd.read_csv(uploaded_file)
 
-    st.dataframe(df.head())
+        st.subheader("Uploaded Data")
 
-    # ----------------------------------------------
-    # Target Column
-    # ----------------------------------------------
+        st.write(df.head())
 
-    target_column = "income"
+        target_column = "income"
 
-    X = df.drop(target_column, axis=1)
+        if target_column not in df.columns:
+            st.error(
+                "income column not found in uploaded file"
+            )
+            st.stop()
 
-    y = df[target_column]
+        X = df.drop(target_column, axis=1)
 
-    # ----------------------------------------------
-    # Load Model
-    # ----------------------------------------------
+        y = df[target_column]
 
-    model = joblib.load(model_paths[model_choice])
+        model = joblib.load(
+            model_paths[model_choice]
+        )
 
-    # ----------------------------------------------
-    # Predictions
-    # ----------------------------------------------
+        st.write("Model Loaded Successfully")
 
-    y_pred = model.predict(X)
+        y_pred = model.predict(X)
 
-    # ----------------------------------------------
-    # Metrics
-    # ----------------------------------------------
+        accuracy = accuracy_score(y, y_pred)
 
-    accuracy = accuracy_score(y, y_pred)
+        try:
+            precision = precision_score(
+                y,
+                y_pred,
+                pos_label=">50K"
+            )
 
-    precision = precision_score(
-        y,
-        y_pred,
-        pos_label=">50K"
-    )
+            recall = recall_score(
+                y,
+                y_pred,
+                pos_label=">50K"
+            )
 
-    recall = recall_score(
-        y,
-        y_pred,
-        pos_label=">50K"
-    )
+            f1 = f1_score(
+                y,
+                y_pred,
+                pos_label=">50K"
+            )
 
-    f1 = f1_score(
-        y,
-        y_pred,
-        pos_label=">50K"
-    )
+        except:
+            precision = precision_score(
+                y,
+                y_pred,
+                average="weighted"
+            )
 
-    mcc = matthews_corrcoef(
-        y,
-        y_pred
-    )
+            recall = recall_score(
+                y,
+                y_pred,
+                average="weighted"
+            )
 
-    st.subheader("Evaluation Metrics")
+            f1 = f1_score(
+                y,
+                y_pred,
+                average="weighted"
+            )
 
-    metrics_df = pd.DataFrame({
-        "Metric": [
-            "Accuracy",
-            "Precision",
-            "Recall",
-            "F1 Score",
-            "MCC"
-        ],
-        "Value": [
-            accuracy,
-            precision,
-            recall,
-            f1,
-            mcc
-        ]
-    })
+        mcc = matthews_corrcoef(
+            y,
+            y_pred
+        )
 
-    st.dataframe(metrics_df)
+        metrics = pd.DataFrame({
+            "Metric": [
+                "Accuracy",
+                "Precision",
+                "Recall",
+                "F1",
+                "MCC"
+            ],
+            "Value": [
+                accuracy,
+                precision,
+                recall,
+                f1,
+                mcc
+            ]
+        })
 
-    # ----------------------------------------------
-    # Classification Report
-    # ----------------------------------------------
+        st.subheader("Metrics")
 
-    st.subheader("Classification Report")
+        st.dataframe(metrics)
 
-    report = classification_report(
-        y,
-        y_pred,
-        output_dict=True
-    )
+        st.subheader(
+            "Classification Report"
+        )
 
-    report_df = pd.DataFrame(report).transpose()
+        report = classification_report(
+            y,
+            y_pred,
+            output_dict=True
+        )
 
-    st.dataframe(report_df)
+        st.dataframe(
+            pd.DataFrame(report).transpose()
+        )
 
-    # ----------------------------------------------
-    # Confusion Matrix
-    # ----------------------------------------------
+        st.subheader("Confusion Matrix")
 
-    st.subheader("Confusion Matrix")
+        cm = confusion_matrix(
+            y,
+            y_pred
+        )
 
-    cm = confusion_matrix(
-        y,
-        y_pred
-    )
+        fig, ax = plt.subplots()
 
-    fig, ax = plt.subplots(figsize=(6,4))
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt="d",
+            cmap="Blues",
+            ax=ax
+        )
 
-    sns.heatmap(
-        cm,
-        annot=True,
-        fmt="d",
-        cmap="Blues",
-        ax=ax
-    )
+        st.pyplot(fig)
 
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
+    except Exception as e:
 
-    st.pyplot(fig)
+        st.error(
+            f"ERROR WHILE RUNNING MODEL: {e}"
+        )
 
-    st.success(
-        f"{model_choice} evaluation completed successfully!"
-    )
+        st.write(
+            "Most likely cause: model was trained using preprocessing/scaling that is missing in app.py"
+        )
