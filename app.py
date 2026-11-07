@@ -42,73 +42,25 @@ model_files = {
 }
 
 if uploaded_file:
-
     data = pd.read_csv(uploaded_file)
+    # Define the feature matrix and target before the selected model uses them.
+    X, y = data.drop(columns=["income"]), data["income"]
 
-    X = data.drop("income",axis=1)
-    y = data["income"]
-
-    model = joblib.load(
-        model_files[model_choice]
-    )
+    if model_choice == "Naive Bayes":
+        model = joblib.load(model_files[model_choice])
+        preprocessor = joblib.load("models/preprocessor.pkl")
+        X = preprocessor.transform(X).toarray()
+    else:
+        model = joblib.load(model_files[model_choice])
 
     y_pred = model.predict(X)
+    y_prob = model.predict_proba(X)[:, 1]
 
-    y_prob = model.predict_proba(X)[:,1]
-
-    st.write(
-        "Accuracy:",
-        accuracy_score(y,y_pred)
-    )
-
-    st.write(
-        "Precision:",
-        precision_score(
-            y,y_pred,
-            pos_label=">50K"
-        )
-    )
-
-    st.write(
-        "Recall:",
-        recall_score(
-            y,y_pred,
-            pos_label=">50K"
-        )
-    )
-
-    st.write(
-        "F1:",
-        f1_score(
-            y,y_pred,
-            pos_label=">50K"
-        )
-    )
-
-    st.write(
-        "AUC:",
-        roc_auc_score(
-            y,y_prob
-        )
-    )
-
-    st.write(
-        "MCC:",
-        matthews_corrcoef(
-            y,y_pred
-        )
-    )
-
-    st.write(
-        confusion_matrix(
-            y,
-            y_pred
-        )
-    )
-
-    st.text(
-        classification_report(
-            y,
-            y_pred
-        )
-    )
+    st.write("Accuracy:", accuracy_score(y, y_pred))
+    st.write("Precision:", precision_score(y, y_pred, pos_label=">50K"))
+    st.write("Recall:", recall_score(y, y_pred, pos_label=">50K"))
+    st.write("F1:", f1_score(y, y_pred, pos_label=">50K"))
+    st.write("AUC:", roc_auc_score(y, y_prob))
+    st.write("MCC:", matthews_corrcoef(y, y_pred))
+    st.write(confusion_matrix(y, y_pred))
+    st.text(classification_report(y, y_pred))
