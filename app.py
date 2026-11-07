@@ -1,7 +1,6 @@
 import streamlit as st
-
-
 import pandas as pd
+import numpy as np
 import joblib
 
 from sklearn.metrics import (
@@ -15,12 +14,20 @@ from sklearn.metrics import (
     classification_report
 )
 
-st.title("Adult Income Classification")
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-uploaded_file = st.file_uploader(
-    "Upload Test CSV",
-    type=["csv"]
-)
+# --------------------------------------------------
+# Page Title
+# --------------------------------------------------
+
+st.title("ML Classification Model Dashboard")
+
+st.write("Adult Income Prediction Assignment")
+
+# --------------------------------------------------
+# Select Model
+# --------------------------------------------------
 
 model_choice = st.selectbox(
     "Select Model",
@@ -33,34 +40,149 @@ model_choice = st.selectbox(
     ]
 )
 
-model_files = {
-    "Logistic Regression":"models/logistic_regression.pkl",
-    "Decision Tree":"models/decision_tree.pkl",
-    "KNN":"models/knn.pkl",
-    "Naive Bayes":"models/naive_bayes.pkl",
-    "SVM":"models/svm.pkl"
+# --------------------------------------------------
+# Model Paths
+# --------------------------------------------------
+
+model_paths = {
+    "Logistic Regression": "model/logistic.pkl",
+    "Decision Tree": "model/decision_tree.pkl",
+    "KNN": "model/knn.pkl",
+    "Naive Bayes": "model/naive_bayes.pkl",
+    "SVM": "model/svm.pkl"
 }
 
-if uploaded_file:
-    data = pd.read_csv(uploaded_file)
-    # Define the feature matrix and target before the selected model uses them.
-    X, y = data.drop(columns=["income"]), data["income"]
+# --------------------------------------------------
+# Upload CSV
+# --------------------------------------------------
 
-    if model_choice == "Naive Bayes":
-        model = joblib.load(model_files[model_choice])
-        preprocessor = joblib.load("models/preprocessor.pkl")
-        X = preprocessor.transform(X).toarray()
-    else:
-        model = joblib.load(model_files[model_choice])
+uploaded_file = st.file_uploader(
+    "Upload test_data.csv",
+    type=["csv"]
+)
+
+if uploaded_file is not None:
+
+    df = pd.read_csv(uploaded_file)
+
+    st.subheader("Uploaded Dataset")
+
+    st.dataframe(df.head())
+
+    # ----------------------------------------------
+    # Target Column
+    # ----------------------------------------------
+
+    target_column = "income"
+
+    X = df.drop(target_column, axis=1)
+
+    y = df[target_column]
+
+    # ----------------------------------------------
+    # Load Model
+    # ----------------------------------------------
+
+    model = joblib.load(model_paths[model_choice])
+
+    # ----------------------------------------------
+    # Predictions
+    # ----------------------------------------------
 
     y_pred = model.predict(X)
-    y_prob = model.predict_proba(X)[:, 1]
 
-    st.write("Accuracy:", accuracy_score(y, y_pred))
-    st.write("Precision:", precision_score(y, y_pred, pos_label=">50K"))
-    st.write("Recall:", recall_score(y, y_pred, pos_label=">50K"))
-    st.write("F1:", f1_score(y, y_pred, pos_label=">50K"))
-    st.write("AUC:", roc_auc_score(y, y_prob))
-    st.write("MCC:", matthews_corrcoef(y, y_pred))
-    st.write(confusion_matrix(y, y_pred))
-    st.text(classification_report(y, y_pred))
+    # ----------------------------------------------
+    # Metrics
+    # ----------------------------------------------
+
+    accuracy = accuracy_score(y, y_pred)
+
+    precision = precision_score(
+        y,
+        y_pred,
+        pos_label=">50K"
+    )
+
+    recall = recall_score(
+        y,
+        y_pred,
+        pos_label=">50K"
+    )
+
+    f1 = f1_score(
+        y,
+        y_pred,
+        pos_label=">50K"
+    )
+
+    mcc = matthews_corrcoef(
+        y,
+        y_pred
+    )
+
+    st.subheader("Evaluation Metrics")
+
+    metrics_df = pd.DataFrame({
+        "Metric": [
+            "Accuracy",
+            "Precision",
+            "Recall",
+            "F1 Score",
+            "MCC"
+        ],
+        "Value": [
+            accuracy,
+            precision,
+            recall,
+            f1,
+            mcc
+        ]
+    })
+
+    st.dataframe(metrics_df)
+
+    # ----------------------------------------------
+    # Classification Report
+    # ----------------------------------------------
+
+    st.subheader("Classification Report")
+
+    report = classification_report(
+        y,
+        y_pred,
+        output_dict=True
+    )
+
+    report_df = pd.DataFrame(report).transpose()
+
+    st.dataframe(report_df)
+
+    # ----------------------------------------------
+    # Confusion Matrix
+    # ----------------------------------------------
+
+    st.subheader("Confusion Matrix")
+
+    cm = confusion_matrix(
+        y,
+        y_pred
+    )
+
+    fig, ax = plt.subplots(figsize=(6,4))
+
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        ax=ax
+    )
+
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+
+    st.pyplot(fig)
+
+    st.success(
+        f"{model_choice} evaluation completed successfully!"
+    )
